@@ -50,21 +50,19 @@ class PartyGrid:
             return True
         return False
 
-    def get_corrupted_columns_for_party(self, party: int) -> int:
+    def get_corrupted_columns_for_row(self, row: int) -> int:
         """
-        Returns the number of columns that are corrupted for a party.
+        Returns the number of columns that are corrupted for a row.
         """
-        if party in self.party_to_cell:
-            row, _ = self.party_to_cell[party]
-            corrupted_cols = [c for c in range(self.k2) if len(self.grid[row][c]) == 0]
-            return len(corrupted_cols)
-        return 0
+
+        corrupted_cols = [c for c in range(self.k2) if len(self.grid[row][c]) == 0]
+        return len(corrupted_cols)
 
     def get_max_corrupted_columns(self) -> int:
         """
         Returns max_P # corrupted columns for P
         """
-        return max((self.get_corrupted_columns_for_party(party) for party in self.party_to_cell), default=0)
+        return max((self.get_corrupted_columns_for_row(row) for row in range(self.k1)), default=0)
 
 class ProtocolParameters(NamedTuple):
     k1: int
