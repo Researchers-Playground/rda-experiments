@@ -81,8 +81,22 @@ Event = NamedTuple("Event", [
     ("data", JoinEvent or LeaveEvent)
 ])
 
-def generate_schedule(n_init: int, D: int, steps: int) -> List[List[Event]]:
-    """Generates a join-leave schedule."""
+def generate_schedule(n_init: int, n_warmup: int, churn: int, steps: int) -> List[List[Event]]:
+    """
+    Generates a join-leave schedule.
+
+    We have some initial set of parties n_init.
+    Then, a number of parties n_warmup joins.
+
+    Afterwards, we assume that in every step
+    churn parties leave and churn parties join.
+    They leave according to a FIFO rule.
+
+    In particular, in the long term, parties stay active
+    for (n_init+n_warmup)/churn time steps.
+
+    """
+
     schedule = []
     party_counter = 0
     active_parties = []
@@ -93,16 +107,23 @@ def generate_schedule(n_init: int, D: int, steps: int) -> List[List[Event]]:
     active_parties.extend(range(n_init))
     schedule.append(init_events)
 
-    # Subsequent time steps
+    # Warmup joins
+    for _ in range(n_warmup):
+        # let a new party join in that time step
+        step_event = [Event("join", JoinEvent(party_counter))]
+        party_counter += 1
+        schedule.append(step_event)
+
+    # Subsequent time steps: churnD parties join and leave every step
     for _ in range(steps):
         step_events = []
-        # D parties join
-        for _ in range(D):
+        # churn parties join
+        for _ in range(churn):
             step_events.append(Event("join", JoinEvent(party_counter)))
             active_parties.append(party_counter)
             party_counter += 1
-        # D parties leave (FIFO rule)
-        for _ in range(D):
+        # churnD parties leave (FIFO rule)
+        for _ in range(churn):
             if active_parties:
                 step_events.append(Event("leave", LeaveEvent(active_parties.pop(0))))
         schedule.append(step_events)
@@ -138,18 +159,38 @@ def simulate_protocol_run(schedule: List[List[Event]], protocol_params: Protocol
     return corruption_graph
 
 if __name__ == "__main__":
-    rows = 10
-    cols = 10
-    params = ProtocolParameters(k1=rows, k2=cols, delta_sub=1, m=100)
-    schedule = generate_schedule(n_init=200, D=50, steps=20)
-    corruption_graph = simulate_protocol_run(schedule, params)
+    cols = 100
+    n_total = 2500 # say 10000 nodes and 2500 are honest
+    n_init = 20
+    n_warmup = n_total - n_init
+    steps = 5000
+    churn = 50
+    lifetime_per_party = n_total / churn
 
-    # Plot the graph
-    plt.plot(corruption_graph)
+    # Range of row values to iterate over
+    row_range = [1, 5, 10, 20]
+
+    # Define different markers and colors for each plot
+    markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
+    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
+
+    plt.figure(figsize=(10, 6))
+
+    for i, rows in enumerate(row_range):
+        params = ProtocolParameters(k1=rows, k2=cols, delta_sub=1, m=100)
+        schedule = generate_schedule(n_init=n_init, n_warmup=n_warmup, churn=churn, steps=steps)
+        corruption_graph = simulate_protocol_run(schedule, params)
+
+        # Plot each line with a unique marker and color
+        plt.plot(corruption_graph, label=f'Rows = {rows}', marker=markers[i % len(markers)], color=colors[i % len(colors)], markevery=500)
+
+    # Customize the plot
     plt.xlabel("Time Steps")
     plt.ylabel("Max Corrupted Columns")
-    plt.title("Protocol Run Simulation")
+    plt.title(f'Protocol Run Simulation; having N = {n_total} honest parties, staying for {lifetime_per_party} steps')
     plt.ylim(0, cols)
+    plt.legend()
+    plt.grid(True)
 
     # Show the plot
     plt.show()
