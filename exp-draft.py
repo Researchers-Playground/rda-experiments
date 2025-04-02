@@ -165,10 +165,10 @@ if __name__ == "__main__":
     n_warmup = n_total - n_init
     steps = 5000
     churn = 50
-    lifetime_per_party = n_total / churn
+    lifetime_per_party = n_total // churn
 
     # Range of row values to iterate over
-    row_range = [1, 5, 10, 20]
+    row_range = [1, 5, 10, 25]
 
     # Define different markers and colors for each plot
     markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     # Customize the plot
     plt.xlabel("Time Steps")
     plt.ylabel("Max Corrupted Columns")
-    plt.title(f'Protocol Run Simulation; having N = {n_total} honest parties, staying for {lifetime_per_party} steps')
+    plt.title(f'Protocol simulation with {cols} columns, having N = {n_total} honest parties, staying for {lifetime_per_party} steps')
     plt.ylim(0, cols)
     plt.legend()
     plt.grid(True)
