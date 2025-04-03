@@ -8,6 +8,7 @@ class PartyGrid:
         self.k1 = k1
         self.k2 = k2
         self.grid = [[[] for _ in range(k2)] for _ in range(k1)]  # Grid of lists
+        self.cells_to_peers = [[0 for _ in range(k2)] for _ in range(k1)] # Maps cell to #peers that nodes in this cell have
         self.party_to_cell: Dict[int, Tuple[int, int]] = {}  # Maps party to cell coordinates
         self.rng = random.Random(seed)  # Initialize random generator with seed
 
@@ -15,9 +16,22 @@ class PartyGrid:
         """Assigns a party to a random cell. Returns True if successful, False if the party already exists."""
         if party in self.party_to_cell:
             return False  # Party already exists in a cell
+
+        # select a random cell and add party to it
         row, col = self.rng.randint(0, self.k1 - 1), self.rng.randint(0, self.k2 - 1)
         self.grid[row][col].append(party)
         self.party_to_cell[party] = (row, col)
+
+        # now the party becomes a peer of other nodes
+        # namely, all nodes in the same column
+        # and all nodes in the same column
+        for other_row in range(self.k1):
+            self.cells_to_peers[other_row][col] += 1
+        for other_col in range(self.k2):
+            self.cells_to_peers[row][other_col] += 1
+        # for the cell itself, we have counted twice, correct that
+        self.cells_to_peers[row][col] -= 1
+
         return True
 
     def get_cell_of_party(self, party: int) -> Optional[Tuple[int, int]]:
@@ -45,8 +59,16 @@ class PartyGrid:
     def remove_party(self, party: int) -> bool:
         """Removes a party from its cell. Returns True if successful, False if the party was not found."""
         if party in self.party_to_cell:
+            # remove the party from the cell
             row, col = self.party_to_cell.pop(party)
             self.grid[row][col].remove(party)
+            # need to update the number of peers for cells
+            # (undo what we did during node add)
+            self.cells_to_peers[row][col] += 1
+            for other_row in range(self.k1):
+                self.cells_to_peers[other_row][col] -= 1
+            for other_col in range(self.k2):
+                self.cells_to_peers[row][other_col] -= 1
             return True
         return False
 
@@ -54,21 +76,36 @@ class PartyGrid:
         """
         Returns the number of columns that are corrupted for a row.
         """
-
         corrupted_cols = [c for c in range(self.k2) if len(self.grid[row][c]) == 0]
         return len(corrupted_cols)
 
     def get_max_corrupted_columns(self) -> int:
         """
-        Returns max_P # corrupted columns for P
+        Returns max_P # corrupted columns for P.
         """
         return max((self.get_corrupted_columns_for_row(row) for row in range(self.k1)), default=0)
+
+    def get_connections_for_cell(self, row: int, col: int) -> int:
+        """
+        Returns number of peers that nodes in this cell have.
+        """
+        return self.cells_to_peers[row][col]
+
+    def get_max_connections(self) -> int:
+        """
+        Returns max_P # peers of P.
+        """
+        return max((self.get_connections_for_cell(row, col) for row in range(self.k1) for col in range(self.k2)), default=0)
 
 class ProtocolParameters(NamedTuple):
     k1: int
     k2: int
     delta_sub: int
     m: int
+
+class ProtocolRunStatistics(NamedTuple):
+    corruption_graph: List[int]
+    connections_graph: List[int]
 
 class JoinEvent(NamedTuple):
     party: int
@@ -122,7 +159,7 @@ def generate_schedule(n_init: int, n_warmup: int, churn: int, steps: int) -> Lis
             step_events.append(Event("join", JoinEvent(party_counter)))
             active_parties.append(party_counter)
             party_counter += 1
-        # churnD parties leave (FIFO rule)
+        # churn parties leave (FIFO rule)
         for _ in range(churn):
             if active_parties:
                 step_events.append(Event("leave", LeaveEvent(active_parties.pop(0))))
@@ -130,7 +167,7 @@ def generate_schedule(n_init: int, n_warmup: int, churn: int, steps: int) -> Lis
 
     return schedule
 
-def simulate_protocol_run(schedule: List[List[Event]], protocol_params: ProtocolParameters) -> List[int]:
+def simulate_protocol_run(schedule: List[List[Event]], protocol_params: ProtocolParameters) -> ProtocolRunStatistics:
     """
     Simulates the execution of the protocol based on the given schedule and protocol parameters.
     """
@@ -145,6 +182,7 @@ def simulate_protocol_run(schedule: List[List[Event]], protocol_params: Protocol
     for event in init_events:
         grid.add_party(event.data.party)
     corruption_graph = [grid.get_max_corrupted_columns()]
+    connections_graph = [grid.get_max_connections()]
 
     # times tau > 0, protocol run
     for events in schedule[1:]:
@@ -155,12 +193,14 @@ def simulate_protocol_run(schedule: List[List[Event]], protocol_params: Protocol
             elif event.type == "leave":
                 grid.remove_party(event.data.party)
         corruption_graph.append(grid.get_max_corrupted_columns())
+        connections_graph.append(grid.get_max_connections())
 
-    return corruption_graph
+    return ProtocolRunStatistics(corruption_graph=corruption_graph, connections_graph=connections_graph)
+
 
 if __name__ == "__main__":
     cols = 100
-    n_total = 2500 # say 10000 nodes and 2500 are honest
+    n_total = 2500  # say 10000 nodes and 2500 are honest
     n_init = 20
     n_warmup = n_total - n_init
     steps = 5000
@@ -174,23 +214,36 @@ if __name__ == "__main__":
     markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
     colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
 
-    plt.figure(figsize=(10, 6))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))  # Two subplots side by side
+    fig.suptitle(f'Protocol Simulation with {cols} columns, {n_total} honest parties, staying for {lifetime_per_party} steps', fontsize=14)
 
     for i, rows in enumerate(row_range):
         params = ProtocolParameters(k1=rows, k2=cols, delta_sub=1, m=100)
         schedule = generate_schedule(n_init=n_init, n_warmup=n_warmup, churn=churn, steps=steps)
-        corruption_graph = simulate_protocol_run(schedule, params)
+        statistics = simulate_protocol_run(schedule, params)
 
-        # Plot each line with a unique marker and color
-        plt.plot(corruption_graph, label=f'Rows = {rows}', marker=markers[i % len(markers)], color=colors[i % len(colors)], markevery=500)
+        # Left plot - Corruption Graph
+        axes[0].plot(statistics.corruption_graph, label=f'Rows = {rows}',
+                     marker=markers[i % len(markers)], color=colors[i % len(colors)], markevery=500)
 
-    # Customize the plot
-    plt.xlabel("Time Steps")
-    plt.ylabel("Max Corrupted Columns")
-    plt.title(f'Protocol simulation with {cols} columns, having N = {n_total} honest parties, staying for {lifetime_per_party} steps')
-    plt.ylim(0, cols)
-    plt.legend()
-    plt.grid(True)
+        # Right plot - Connection Graph
+        axes[1].plot(statistics.connections_graph, label=f'Rows = {rows}',
+                     marker=markers[i % len(markers)], color=colors[i % len(colors)], markevery=500)
 
-    # Show the plot
+    # Customize left plot
+    axes[0].set_xlabel("Time Steps")
+    axes[0].set_ylabel("Max Corrupted Columns")
+    axes[0].set_title('Corruption Graphs')
+    axes[0].set_ylim(0, cols)
+    axes[0].legend()
+    axes[0].grid(True)
+
+    # Customize right plot
+    axes[1].set_xlabel("Time Steps")
+    axes[1].set_ylabel("Max Number of Peers")
+    axes[1].set_title('Connection Graphs')
+    axes[1].legend()
+    axes[1].grid(True)
+
+    plt.tight_layout()
     plt.show()
