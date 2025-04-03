@@ -223,7 +223,9 @@ if __name__ == "__main__":
         statistics = simulate_protocol_run(schedule, params)
 
         # Left plot - Corruption Graph
-        axes[0].plot(statistics.corruption_graph, label=f'Rows = {rows}',
+        # Make relative first
+        corruption_graph_relative = [100 * x / cols for x in statistics.corruption_graph]
+        axes[0].plot(corruption_graph_relative, label=f'Rows = {rows}',
                      marker=markers[i % len(markers)], color=colors[i % len(colors)], markevery=500)
 
         # Right plot - Connection Graph
@@ -232,9 +234,9 @@ if __name__ == "__main__":
 
     # Customize left plot
     axes[0].set_xlabel("Time Steps")
-    axes[0].set_ylabel("Max Corrupted Columns")
+    axes[0].set_ylabel("Max Fraction of Corrupted Symbols (in %)")
     axes[0].set_title('Corruption Graphs')
-    axes[0].set_ylim(0, cols)
+    axes[0].set_ylim(0, 100)
     axes[0].legend()
     axes[0].grid(True)
 
