@@ -188,6 +188,46 @@ def generate_k1_k2_curve(epsilon: float, N: int, target_delta: float = 1e-9):
     
     return curve_points
 
+def calculate_joining_complexity(k1: int, k2: int, n_max: int, t: int = 50) -> float:
+    """
+    Calculates the total joining complexity using the formula:
+    3t + (tn^max)/k₁ + ((t+4)n^max k₂ - 2n^max + (n^max)²)/k₂²
+    
+    Args:
+        k1: k₁ parameter
+        k2: k₂ parameter
+        n_max: maximum number of nodes
+        t: number of bootstrap nodes (default: 50)
+    
+    Returns:
+        The total joining complexity
+    """
+    term1 = 3 * t
+    term2 = (t * n_max) / k1
+    term3 = ((t + 4) * n_max * k2 - 2 * n_max + n_max * n_max) / (k2 * k2)
+    
+    return term1 + term2 + term3
+
+def calculate_get_complexity(k1: int, k2: int, N: int, L_msg: int = 1) -> float:
+    """
+    Calculates the complexity of the Get operation using the formula:
+    (n/(k₁k₂) + 3n²/(k₁k₂²)) · L_msg
+    where n = n^max_hon = n^max = N
+    
+    Args:
+        k1: k₁ parameter
+        k2: k₂ parameter
+        N: maximum number of nodes (n^max)
+        L_msg: message length (default: 1)
+    
+    Returns:
+        The Get operation complexity
+    """
+    n = N  # n = n^max_hon = n^max = N
+    term1 = n / (k1 * k2)
+    term2 = (3 * n * n) / (k1 * k2 * k2)
+    return (term1 + term2) * L_msg
+
 if __name__ == "__main__":
     # Time parameters (for reference)
     SECONDS_PER_ROUND = 4
@@ -202,43 +242,115 @@ if __name__ == "__main__":
     print(f"T (10 years) = {T_rounds:,} rounds")
     print(f"Δ_overlap (6 hours) = {delta_overlap_rounds:,} rounds")
     print(f"Δ_overlap_min = {delta_overlap_min_rounds} rounds")
+    print("Bootstrap nodes (t) = 50")
     print("\n" + "="*50 + "\n")
     
-    # Parameters for k1-k2 analysis
+    # Parameters for analysis
     N_values = [1000, 10000, 100000]
     epsilon_values = [0.01, 0.1]
     target_delta = 1e-9
+    BOOTSTRAP_NODES = 50  # Fixed number of bootstrap nodes
+    L_MSG = 1  # Fixed message length
     
-    # Generate and display tables and plots for each combination
-    plt.figure(figsize=(15, 10))
+    # Create three subplots
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(24, 8))
+    
+    # For storing minimum complexity points
+    min_join_complexities = []
+    min_get_complexities = []
     
     for eps in epsilon_values:
         for N in N_values:
             print(f"\nResults for ε={eps}, N={N}:")
-            print("k2\tk1")
-            print("-" * 20)
+            print("k2\tk1\tJoin Complexity\tGet Complexity")
+            print("-" * 50)
             
             # Generate the curve
             curve = generate_k1_k2_curve(eps, N, target_delta)
             
-            # Print the table
-            #for k2, k1 in curve:
-            #    print(f"{k2}\t{k1}")
-            
-            # Plot the curve
             if curve:  # Only plot if we have points
                 k2_values, k1_values = zip(*curve)
-                plt.plot(k2_values, k1_values, marker='o', label=f'ε={eps}, N={N}')
+                
+                # Plot k1-k2 trade-off
+                ax1.plot(k2_values, k1_values, marker='o', label=f'ε={eps}, N={N}')
+                
+                # Calculate and plot join complexities
+                join_complexities = [calculate_joining_complexity(k1, k2, N) for k2, k1 in curve]
+                ax2.plot(k2_values, join_complexities, marker='o', label=f'ε={eps}, N={N}')
+                
+                # Calculate and plot get complexities
+                get_complexities = [calculate_get_complexity(k1, k2, N) for k2, k1 in curve]
+                ax3.plot(k2_values, get_complexities, marker='o', label=f'ε={eps}, N={N}')
+                
+                # Find minimum complexity points
+                min_join_complexity = min(join_complexities)
+                min_join_idx = join_complexities.index(min_join_complexity)
+                min_join_complexities.append({
+                    'epsilon': eps,
+                    'N': N,
+                    'k1': k1_values[min_join_idx],
+                    'k2': k2_values[min_join_idx],
+                    'complexity': min_join_complexity
+                })
+                
+                min_get_complexity = min(get_complexities)
+                min_get_idx = get_complexities.index(min_get_complexity)
+                min_get_complexities.append({
+                    'epsilon': eps,
+                    'N': N,
+                    'k1': k1_values[min_get_idx],
+                    'k2': k2_values[min_get_idx],
+                    'complexity': min_get_complexity
+                })
+                
+                # Print values
+                for k2, k1, join_compl, get_compl in zip(k2_values, k1_values, join_complexities, get_complexities):
+                    print(f"{k2}\t{k1}\t{join_compl:.2e}\t{get_compl:.2e}")
             else:
-                print("No valid (k2, k1) pairs found for this combination.")    
-    plt.xlabel('k₂')
-    plt.ylabel('k₁')
-    plt.title('k₁-k₂ Trade-off Curves for Different ε and N Values\n(δ ≤ 10⁻⁹)')
-    plt.grid(True)
-    plt.legend()
-    plt.yscale('log')
-    plt.xscale('log')
+                print("No valid (k2, k1) pairs found for this combination.")
     
-    # Save the plot
-    plt.savefig('k1_k2_tradeoff.png')
+    # Configure first subplot (k1-k2 trade-off)
+    ax1.set_xlabel('k₂')
+    ax1.set_ylabel('k₁')
+    ax1.set_title('k₁-k₂ Trade-off Curves')
+    ax1.grid(True)
+    ax1.legend()
+    ax1.set_yscale('log')
+    ax1.set_xscale('log')
+    
+    # Configure second subplot (join complexity)
+    ax2.set_xlabel('k₂')
+    ax2.set_ylabel('Join Complexity')
+    ax2.set_title('Join Complexity vs k₂\n(t=50 bootstrap nodes)')
+    ax2.grid(True)
+    ax2.legend()
+    ax2.set_yscale('log')
+    ax2.set_xscale('log')
+    
+    # Configure third subplot (get complexity)
+    ax3.set_xlabel('k₂')
+    ax3.set_ylabel('Get Complexity')
+    ax3.set_title('Get Complexity vs k₂\n(L_msg=1)')
+    ax3.grid(True)
+    ax3.legend()
+    ax3.set_yscale('log')
+    ax3.set_xscale('log')
+    
+    plt.tight_layout()
+    
+    # Save the plots
+    plt.savefig('complexity_analysis.png')
     plt.close()
+    
+    # Print minimum complexity points
+    print("\nMinimum Join Complexity Points:")
+    print("ε\tN\tk1\tk2\tComplexity")
+    print("-" * 50)
+    for point in min_join_complexities:
+        print(f"{point['epsilon']}\t{point['N']}\t{point['k1']}\t{point['k2']}\t{point['complexity']:.2e}")
+        
+    print("\nMinimum Get Complexity Points:")
+    print("ε\tN\tk1\tk2\tComplexity")
+    print("-" * 50)
+    for point in min_get_complexities:
+        print(f"{point['epsilon']}\t{point['N']}\t{point['k1']}\t{point['k2']}\t{point['complexity']:.2e}")
