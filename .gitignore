@@ -3,11 +3,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+*.pdf
+*.synctex.gz
 *.csv
 *.fls
 *.aux
 *.fdb
 *.bbl
+*.fdb_latexmk
 
 # C extensions
 *.so
