@@ -135,7 +135,7 @@ def find_max_k2_with_k1_1(epsilon: float, N: int, target_delta: float = 1e-9) ->
 
     T_rounds = int(10 * SECONDS_PER_YEAR / SECONDS_PER_ROUND)
     delta_overlap_rounds = int(6 * SECONDS_PER_HOUR / SECONDS_PER_ROUND)
-    delta_overlap_min_rounds = 4
+    delta_overlap_min_rounds = 30 * 60 / SECONDS_PER_ROUND # say roughly 15 minutes for sync
 
     # Binary search for k2
     left, right = 1, 2000  # Increased range for k2
@@ -260,22 +260,6 @@ if __name__ == "__main__":
     headers = [
         "k2", "k1", "data_complexity", "join_complexity", "get_complexity", "store_complexity"
     ]
-
-    # Time parameters (for reference)
-    SECONDS_PER_ROUND = 4
-    SECONDS_PER_HOUR = 3600
-    SECONDS_PER_YEAR = 31557600
-
-    T_rounds = int(10 * SECONDS_PER_YEAR / SECONDS_PER_ROUND)  # 10 years in rounds
-    delta_overlap_rounds = int(6 * SECONDS_PER_HOUR / SECONDS_PER_ROUND)  # 6 hours in rounds
-    delta_overlap_min_rounds = 4  # already in rounds
-
-    print(f"Time parameters:")
-    print(f"T (10 years) = {T_rounds:,} rounds")
-    print(f"Δ_overlap (6 hours) = {delta_overlap_rounds:,} rounds")
-    print(f"Δ_overlap_min = {delta_overlap_min_rounds} rounds")
-    print("Bootstrap nodes (t) = 50")
-    print("\n" + "="*50 + "\n")
 
     # Parameters for analysis
     N_values = [1000, 5000, 10000, 100000]
