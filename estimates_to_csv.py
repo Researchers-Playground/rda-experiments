@@ -263,7 +263,7 @@ if __name__ == "__main__":
 
     # Parameters for analysis
     N_values = [1000, 5000, 10000, 100000]
-    epsilon_nominator_values = [1, 10] # epsilon is this / 100
+    epsilon_nominator_values = [5, 10] # epsilon is this / 100
     target_delta = 1e-9
 
     # iterate over a bunch of eps, N pairs
