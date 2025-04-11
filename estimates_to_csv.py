@@ -164,7 +164,7 @@ def find_max_k2_with_k1_1(epsilon: float, N: int, target_delta: float = 1e-9) ->
 
     return best_k2
 
-def calculate_joining_complexity(k1: int, k2: int, n_max: int, t: int = 50, L_msg: int = 1) -> float:
+def calculate_joining_complexity(k1: int, k2: int, n_max: int, n_bs: int = 100, t: int = 50, L_msg: int = 1) -> float:
     """
     Calculates the complexity of the Join operation.
 
@@ -172,17 +172,19 @@ def calculate_joining_complexity(k1: int, k2: int, n_max: int, t: int = 50, L_ms
         k1: k₁ parameter
         k2: k₂ parameter
         n_max: maximum number of nodes
-        t: number of bootstrap nodes (default: 50)
+        n_bs: total number of nodes (default: 100)
+        t: used number of bootstrap nodes (default: 50)
         L_msg: message length (default: 1)
 
     Returns:
         The Join operation complexity
     """
     term1 = 3 * t
-    term2 = (t * n_max) / k1
-    term3 = ((t + 4) * n_max * k2 - 2 * n_max + n_max * n_max) / (k2 * k2)
+    term2 = t * n_bs
+    term3 = (t * n_max) / k1
+    term4 = ((t + 4) * n_max * k2 - 2 * n_max + n_max * n_max) / (k2 * k2)
 
-    return (term1 + term2 + term3) * L_msg
+    return (term1 + term2 + term3 + term4) * L_msg
 
 def calculate_get_complexity(k1: int, k2: int, n_max: int, n_hon_max: int, L_msg: int = 1) -> float:
     """
