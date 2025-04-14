@@ -52,7 +52,7 @@ def calculate_rhs(
     import math
 
     # Calculate the ceiling term
-    ceiling_term = math.ceil((T + 3) / (delta_overlap - delta_overlap_min + 1))
+    ceiling_term = math.ceil((T + 2) / (delta_overlap - delta_overlap_min + 1))
 
     # Calculate h(ε)
     h_epsilon = binary_entropy(epsilon)
