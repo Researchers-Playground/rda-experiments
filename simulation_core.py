@@ -84,6 +84,12 @@ class PartyGrid:
         """
         return max((self.get_corrupted_columns_for_row(row) for row in range(self.k1)), default=0)
 
+    def get_min_honest_nodes_per_columns(self) -> int:
+        """
+        Returns min_P # minimum number of honest nodes in any column for P.
+        """
+        return min((len(self.get_parties_in_column(col)) for col in range(self.k2)), default=0)
+
     def get_connections_for_cell(self, row: int, col: int) -> int:
         """
         Returns number of peers that nodes in this cell have.
@@ -105,6 +111,7 @@ class ProtocolParameters(NamedTuple):
 class ProtocolRunStatistics(NamedTuple):
     corruption_graph: List[int]
     connections_graph: List[int]
+    honest_nodes_columns_graph: List[int]
 
 class JoinEvent(NamedTuple):
     party: int
@@ -182,6 +189,7 @@ def simulate_protocol_run(schedule: List[List[Event]], protocol_params: Protocol
         grid.add_party(event.data.party)
     corruption_graph = [grid.get_max_corrupted_columns()]
     connections_graph = [grid.get_max_connections()]
+    honest_nodes_columns_graph = [grid.get_min_honest_nodes_per_columns()]
 
     # times tau > 0, protocol run
     for events in schedule[1:]:
@@ -193,5 +201,6 @@ def simulate_protocol_run(schedule: List[List[Event]], protocol_params: Protocol
                 grid.remove_party(event.data.party)
         corruption_graph.append(grid.get_max_corrupted_columns())
         connections_graph.append(grid.get_max_connections())
+        honest_nodes_columns_graph.append(grid.get_min_honest_nodes_per_columns())
 
-    return ProtocolRunStatistics(corruption_graph=corruption_graph, connections_graph=connections_graph)
+    return ProtocolRunStatistics(corruption_graph=corruption_graph, connections_graph=connections_graph,honest_nodes_columns_graph=honest_nodes_columns_graph)
