@@ -311,7 +311,7 @@ if __name__ == "__main__":
                 rows = generate_rows(epsilon, N, K, target_delta=1e-9)
                 if not rows:
                     continue
-                rows.sort(key=lambda x: x[0])  # sort theo k2 tăng dần
+                rows.sort(key=lambda x: x[0])
                 curves[K] = dict(
                     k2=[r[0] for r in rows],
                     join=[r[3] for r in rows],
@@ -324,7 +324,7 @@ if __name__ == "__main__":
                 continue
 
             fig, axes = plt.subplots(1, 3, figsize=(18, 4.5))
-            plt.subplots_adjust(wspace=0.3, top=0.83)  # chừa chỗ cho suptitle
+            plt.subplots_adjust(wspace=0.3, top=0.83)
             markers = {1: "o", 8: "s", 16: "^"}
             labels = {1: "K=1", 8: "K=8", 16: "K=16"}
 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
             ax.set_xlabel("k2")
             ax.set_ylabel("Get Complexity")
             ax.grid(True, alpha=0.3)
-            # ax.set_yscale("log")  # bật nếu muốn nhìn rõ đuôi nhỏ
+            # ax.set_yscale("log")
 
             # Store
             ax = axes[2]
@@ -370,7 +370,6 @@ if __name__ == "__main__":
             ax.grid(True, alpha=0.3)
             # ax.set_yscale("log")
 
-            # Tiêu đề rõ ràng, không bị cắt
             fig.suptitle(
                 f"Complexity Comparison (epsilon={epsilon:.2f}, N={N})",
                 fontsize=14, y=0.98, weight="bold"
