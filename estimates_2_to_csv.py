@@ -1,5 +1,15 @@
 import math
 import csv
+from pathlib import Path
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+size_map = dict({
+    1: 608,
+    8: 161,
+    16: 130,
+})
 
 def binary_entropy(epsilon: float) -> float:
     """
@@ -194,21 +204,60 @@ def calculate_get_complexity(k1: int, k2: int, n_max: int, n_hon_max: int, K: in
         ((n_max + n_hon_max*K)/(k1*k2)
          + 3*n_hon_max*(n_max + n_hon_max)/(k1*k2**2)) * L_msg
     """
-    term1 = (n_max + n_hon_max * K) / (k1 * k2)
-    term2 = (3 * n_hon_max * (n_max + n_hon_max)) / (k1 * (k2 ** 2))
+    term1 = 0
+    term2 = 0
+    if K == 1:
+        term1 = n_max / (k1 * k2)
+        term2 = (n_hon_max) / (k1 * k2)
+    else:
+        ratio = size_map[K] / size_map[1]
+        term1 = (n_max + n_hon_max * K * ratio) / (k1 * k2)
+        term2 = (3 * n_hon_max * (n_max + n_hon_max)) / (k1 * (k2 ** 2))
     return (term1 + term2) * L_msg
 
 
-def calculate_store_complexity(k1: int, k2: int, n_max: int, n_hon_max: int, L_msg: int = 1) -> float:
+def calculate_store_complexity(k1: int, k2: int, n_max: int, n_hon_max: int, K: int, L_msg: int = 1) -> float:
     """
     Calculates the expected communication complexity of the STORE operation.
 
     Formula:
         (n_max/(k1*k2) + 3*n_hon_max*n_max/(k1*k2**2)) * L_msg
     """
+    ratio = size_map[K] / size_map[1]
     term1 = n_max / (k1 * k2)
-    term2 = (3 * n_hon_max * n_max) / (k1 * (k2 ** 2))
+    term2 = (3 * n_hon_max * n_max * ratio) / (k1 * (k2 ** 2))
     return (term1 + term2) * L_msg
+
+
+def generate_rows(epsilon: float, N: int, K: int, target_delta: float = 1e-9):
+    """
+    Generates a list of tuples (k2, k1, data complexity, join complexity, get complexity, store complexity), such that
+    (k1,k2) yield the target error probability delta and the given complexities.
+    For each k2 from max possible down to 1, the function takes the maximum k1
+    that yields the desired error.
+    """
+
+    # First find the maximum k2 possible with k1=1
+    max_k2 = find_max_k2_with_k1_1(epsilon, N, target_delta)
+    if max_k2 is None:
+        return []
+
+    n_max = 5 * N
+    n_hon_max = 2 * N
+
+    rows = []
+    # For each k2 value from max down to 1
+    for k2 in range(max_k2, 0, -1):
+        k1 = find_max_k1(k2, epsilon, N, target_delta)
+        if k1 is not None:
+            # we have found a valid k1, now compute complexities
+            data_complexity = 1.0 / k2
+            join_complexity = calculate_joining_complexity(k1, k2, n_max)
+            get_complexity = calculate_get_complexity(k1, k2, n_max, n_hon_max, K)
+            store_complexity = calculate_store_complexity(k1, k2, n_max, n_hon_max, K)
+            rows.append((k2, k1, data_complexity, join_complexity, get_complexity, store_complexity))
+
+    return rows
 
 
 
@@ -238,38 +287,95 @@ def generate_rows(epsilon: float, N: int, K: int, target_delta: float = 1e-9):
             data_complexity = 1.0 / k2
             join_complexity = calculate_joining_complexity(k1, k2, n_max)
             get_complexity = calculate_get_complexity(k1, k2, n_max, n_hon_max, K)
-            store_complexity = calculate_store_complexity(k1, k2, n_max, n_hon_max)
+            store_complexity = calculate_store_complexity(k1, k2, n_max, n_hon_max, K)
             rows.append((k2, k1, data_complexity, join_complexity, get_complexity, store_complexity))
 
     return rows
 
 
-
 if __name__ == "__main__":
-
-    # Define the column headers for our csv file.
-    headers = [
-        "k2", "k1", "data_complexity", "join_complexity", "get_complexity", "store_complexity"
-    ]
-
-    # Parameters for analysis
     N_values = [1000, 5000, 10000, 100000]
     epsilon_nominator_values = [5, 10] # epsilon is this / 100
-    target_delta = 1e-9
-    K = 16
+    K_list = [1, 8, 16]
 
-    # iterate over a bunch of eps, N pairs
+    outdir = Path(".")
+    outdir.mkdir(parents=True, exist_ok=True)
+
     for eps_nom in epsilon_nominator_values:
+        epsilon = eps_nom / 100.0
         for N in N_values:
-            # Generate the curve
-            eps = eps_nom / 100
-            rows = generate_rows(eps, N, K, target_delta)
+            print(f"[Run] epsilon={epsilon:.2f}, N={N}")
 
-            if rows:
-                filename = f"estimates_2_data_{eps_nom}_{N}.csv"
-                # Write the data to the CSV file
-                with open(filename, mode='w', newline='') as file:
-                    writer = csv.writer(file)
-                    writer.writerow(headers)  # Write the header row
-                    writer.writerows(rows)    # Write the data rows
-                print(f"Data written to {filename}")
+            curves = {}
+            for K in K_list:
+                rows = generate_rows(epsilon, N, K, target_delta=1e-9)
+                if not rows:
+                    continue
+                rows.sort(key=lambda x: x[0])  # sort theo k2 tăng dần
+                curves[K] = dict(
+                    k2=[r[0] for r in rows],
+                    join=[r[3] for r in rows],
+                    get=[r[4] for r in rows],
+                    store=[r[5] for r in rows],
+                )
+
+            if not curves:
+                print(f"⚠️  No data for ε={epsilon:.2f}, N={N}")
+                continue
+
+            fig, axes = plt.subplots(1, 3, figsize=(18, 4.5))
+            plt.subplots_adjust(wspace=0.3, top=0.83)  # chừa chỗ cho suptitle
+            markers = {1: "o", 8: "s", 16: "^"}
+            labels = {1: "K=1", 8: "K=8", 16: "K=16"}
+
+            # Join
+            ax = axes[0]
+            for K in K_list:
+                if K not in curves:
+                    continue
+                ax.plot(curves[K]["k2"], curves[K]["join"],
+                        marker=markers[K], label=labels[K],
+                        linewidth=1.8, markersize=4)
+            ax.set_title("Join Complexity")
+            ax.set_xlabel("k2")
+            ax.set_ylabel("Join Complexity")
+            ax.grid(True, alpha=0.3)
+            ax.legend(title="K values")
+
+            # Get
+            ax = axes[1]
+            for K in K_list:
+                if K not in curves:
+                    continue
+                ax.plot(curves[K]["k2"], curves[K]["get"],
+                        marker=markers[K], label=labels[K],
+                        linewidth=1.8, markersize=4)
+            ax.set_title("Get Complexity")
+            ax.set_xlabel("k2")
+            ax.set_ylabel("Get Complexity")
+            ax.grid(True, alpha=0.3)
+            # ax.set_yscale("log")  # bật nếu muốn nhìn rõ đuôi nhỏ
+
+            # Store
+            ax = axes[2]
+            for K in K_list:
+                if K not in curves:
+                    continue
+                ax.plot(curves[K]["k2"], curves[K]["store"],
+                        marker=markers[K], label=labels[K],
+                        linewidth=1.8, markersize=4)
+            ax.set_title("Store Complexity")
+            ax.set_xlabel("k2")
+            ax.set_ylabel("Store Complexity")
+            ax.grid(True, alpha=0.3)
+            # ax.set_yscale("log")
+
+            # Tiêu đề rõ ràng, không bị cắt
+            fig.suptitle(
+                f"Complexity Comparison (epsilon={epsilon:.2f}, N={N})",
+                fontsize=14, y=0.98, weight="bold"
+            )
+
+            out_name = outdir / f"complexity_raw_eps{eps_nom}_N{N}.png"
+            fig.savefig(out_name.as_posix(), dpi=160, bbox_inches="tight")
+            plt.close(fig)
