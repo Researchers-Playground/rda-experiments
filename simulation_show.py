@@ -2,8 +2,8 @@ from simulation_core import *
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    cols = 110
-    n_total = 5000  # say 10000 nodes and 2500 are honest
+    cols = 100
+    n_total = 2500  # say 10000 nodes and 2500 are honest
     n_init = 20
     n_warmup = n_total - n_init
     steps = 10000

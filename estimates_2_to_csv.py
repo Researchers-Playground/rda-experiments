@@ -292,89 +292,118 @@ def generate_rows(epsilon: float, N: int, K: int, target_delta: float = 1e-9):
 
     return rows
 
-
 if __name__ == "__main__":
+    # Define the column headers for our csv file.
+    headers = [
+        "k2", "k1", "data_complexity", "join_complexity", "get_complexity", "store_complexity"
+    ]
+
+    # Parameters for analysis
     N_values = [1000, 5000, 10000, 100000]
     epsilon_nominator_values = [5, 10] # epsilon is this / 100
-    K_list = [1, 8, 16]
+    target_delta = 1e-9
+    K = 8
 
-    outdir = Path(".")
-    outdir.mkdir(parents=True, exist_ok=True)
-
+    # iterate over a bunch of eps, N pairs
     for eps_nom in epsilon_nominator_values:
-        epsilon = eps_nom / 100.0
         for N in N_values:
-            print(f"[Run] epsilon={epsilon:.2f}, N={N}")
+            # Generate the curve
+            eps = eps_nom / 100
+            rows = generate_rows(eps, N, K, target_delta)
 
-            curves = {}
-            for K in K_list:
-                rows = generate_rows(epsilon, N, K, target_delta=1e-9)
-                if not rows:
-                    continue
-                rows.sort(key=lambda x: x[0])
-                curves[K] = dict(
-                    k2=[r[0] for r in rows],
-                    join=[r[3] for r in rows],
-                    get=[r[4] for r in rows],
-                    store=[r[5] for r in rows],
-                )
+            if rows:
+                filename = f"estimates_data_{eps_nom}_{N}.csv"
+                # Write the data to the CSV file
+                with open(filename, mode='w', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(headers)  # Write the header row
+                    writer.writerows(rows)    # Write the data rows
+                print(f"Data written to {filename}")
 
-            if not curves:
-                print(f"⚠️  No data for ε={epsilon:.2f}, N={N}")
-                continue
 
-            fig, axes = plt.subplots(1, 3, figsize=(18, 4.5))
-            plt.subplots_adjust(wspace=0.3, top=0.83)
-            markers = {1: "o", 8: "s", 16: "^"}
-            labels = {1: "K=1", 8: "K=8", 16: "K=16"}
 
-            # Join
-            ax = axes[0]
-            for K in K_list:
-                if K not in curves:
-                    continue
-                ax.plot(curves[K]["k2"], curves[K]["join"],
-                        marker=markers[K], label=labels[K],
-                        linewidth=1.8, markersize=4)
-            ax.set_title("Join Complexity")
-            ax.set_xlabel("k2")
-            ax.set_ylabel("Join Complexity")
-            ax.grid(True, alpha=0.3)
-            ax.legend(title="K values")
+# if __name__ == "__main__":
+#     N_values = [1000, 5000, 10000, 100000]
+#     epsilon_nominator_values = [5, 10] # epsilon is this / 100
+#     K_list = [1, 8, 16]
 
-            # Get
-            ax = axes[1]
-            for K in K_list:
-                if K not in curves:
-                    continue
-                ax.plot(curves[K]["k2"], curves[K]["get"],
-                        marker=markers[K], label=labels[K],
-                        linewidth=1.8, markersize=4)
-            ax.set_title("Get Complexity")
-            ax.set_xlabel("k2")
-            ax.set_ylabel("Get Complexity")
-            ax.grid(True, alpha=0.3)
-            # ax.set_yscale("log")
+#     outdir = Path(".")
+#     outdir.mkdir(parents=True, exist_ok=True)
 
-            # Store
-            ax = axes[2]
-            for K in K_list:
-                if K not in curves:
-                    continue
-                ax.plot(curves[K]["k2"], curves[K]["store"],
-                        marker=markers[K], label=labels[K],
-                        linewidth=1.8, markersize=4)
-            ax.set_title("Store Complexity")
-            ax.set_xlabel("k2")
-            ax.set_ylabel("Store Complexity")
-            ax.grid(True, alpha=0.3)
-            # ax.set_yscale("log")
+#     for eps_nom in epsilon_nominator_values:
+#         epsilon = eps_nom / 100.0
+#         for N in N_values:
+#             print(f"[Run] epsilon={epsilon:.2f}, N={N}")
 
-            fig.suptitle(
-                f"Complexity Comparison (epsilon={epsilon:.2f}, N={N})",
-                fontsize=14, y=0.98, weight="bold"
-            )
+#             curves = {}
+#             for K in K_list:
+#                 rows = generate_rows(epsilon, N, K, target_delta=1e-9)
+#                 if not rows:
+#                     continue
+#                 rows.sort(key=lambda x: x[0])
+#                 curves[K] = dict(
+#                     k2=[r[0] for r in rows],
+#                     join=[r[3] for r in rows],
+#                     get=[r[4] for r in rows],
+#                     store=[r[5] for r in rows],
+#                 )
 
-            out_name = outdir / f"complexity_raw_eps{eps_nom}_N{N}.png"
-            fig.savefig(out_name.as_posix(), dpi=160, bbox_inches="tight")
-            plt.close(fig)
+#             if not curves:
+#                 print(f"⚠️  No data for ε={epsilon:.2f}, N={N}")
+#                 continue
+
+#             fig, axes = plt.subplots(1, 3, figsize=(18, 4.5))
+#             plt.subplots_adjust(wspace=0.3, top=0.83)
+#             markers = {1: "o", 8: "s", 16: "^"}
+#             labels = {1: "K=1", 8: "K=8", 16: "K=16"}
+
+#             # Join
+#             ax = axes[0]
+#             for K in K_list:
+#                 if K not in curves:
+#                     continue
+#                 ax.plot(curves[K]["k2"], curves[K]["join"],
+#                         marker=markers[K], label=labels[K],
+#                         linewidth=1.8, markersize=4)
+#             ax.set_title("Join Complexity")
+#             ax.set_xlabel("k2")
+#             ax.set_ylabel("Join Complexity")
+#             ax.grid(True, alpha=0.3)
+#             ax.legend(title="K values")
+
+#             # Get
+#             ax = axes[1]
+#             for K in K_list:
+#                 if K not in curves:
+#                     continue
+#                 ax.plot(curves[K]["k2"], curves[K]["get"],
+#                         marker=markers[K], label=labels[K],
+#                         linewidth=1.8, markersize=4)
+#             ax.set_title("Get Complexity")
+#             ax.set_xlabel("k2")
+#             ax.set_ylabel("Get Complexity")
+#             ax.grid(True, alpha=0.3)
+#             # ax.set_yscale("log")
+
+#             # Store
+#             ax = axes[2]
+#             for K in K_list:
+#                 if K not in curves:
+#                     continue
+#                 ax.plot(curves[K]["k2"], curves[K]["store"],
+#                         marker=markers[K], label=labels[K],
+#                         linewidth=1.8, markersize=4)
+#             ax.set_title("Store Complexity")
+#             ax.set_xlabel("k2")
+#             ax.set_ylabel("Store Complexity")
+#             ax.grid(True, alpha=0.3)
+#             # ax.set_yscale("log")
+
+#             fig.suptitle(
+#                 f"Complexity Comparison (epsilon={epsilon:.2f}, N={N})",
+#                 fontsize=14, y=0.98, weight="bold"
+#             )
+
+#             out_name = outdir / f"complexity_raw_eps{eps_nom}_N{N}.png"
+#             fig.savefig(out_name.as_posix(), dpi=160, bbox_inches="tight")
+#             plt.close(fig)
